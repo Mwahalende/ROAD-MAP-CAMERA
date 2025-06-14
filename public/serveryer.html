@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Surveyor Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f8f9fa;
+      max-width: 600px;
+      margin: auto;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    #profilePhoto {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: #007bff;
+      color: white;
+      font-weight: bold;
+      font-size: 24px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      cursor: pointer;
+      margin-right: 15px;
+    }
+    #profilePhoto img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #fullname {
+      font-size: 1.2em;
+      font-weight: bold;
+    }
+    button {
+      padding: 10px;
+      background: #28a745;
+      border: none;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 15px;
+      width: 100%;
+      font-weight: bold;
+      font-size: 1em;
+    }
+    button:hover {
+      background: #218838;
+    }
+    label {
+      display: block;
+      margin: 12px 0 5px;
+    }
+    input[type="text"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 8px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      resize: vertical;
+    }
+    #camera {
+      margin-top: 10px;
+      width: 100%;
+      height: 300px;
+      background: black;
+      display: block;
+    }
+    #capturedPhoto {
+      margin-top: 10px;
+      max-width: 100%;
+      border: 1px solid #ccc;
+    }
+    #locationInfo {
+      margin-top: 10px;
+      background: #e9ecef;
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 0.9em;
+    }
+    #actions {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 20px;
+    }
+    #actions button {
+      width: 48%;
+      background: #dc3545;
+    }
+    #actions button:hover {
+      background: #c82333;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    
+    <div id="profilePhoto" title="Click to upload profile photo"></div>
+    <div id="fullname"></div>
+  </header>
+
+  <h2>Capture Road Damage Photo</h2><a href="dash.html" style="width: 60px;"><button type="button">Dashboard</button></a>
+
+  <video id="camera" autoplay playsinline></video>
+  <canvas id="canvas" style="display:none;"></canvas>
+  <img id="capturedPhoto" alt="Captured photo will appear here" />
+
+  <button id="captureBtn">Capture Photo</button>
+
+  <div id="locationInfo">Loading geolocation...</div>
+
+  <form id="photoForm">
+    <label for="street">Street / Road Name:</label>
+    <select id="street" required>
+      <option value="">Select street/road</option>
+      <option value="Main St">Main St</option>
+      <option value="Central Ave">Central Ave</option>
+      <option value="Highway 1">Highway 1</option>
+      <option value="River Road">River Road</option>
+    </select>
+
+    <label for="damageClass">Damage Class:</label>
+    <select id="damageClass" required>
+      <option value="">Select damage class</option>
+      <option value="Cracks">Cracks</option>
+      <option value="Potholes">Potholes</option>
+      <option value="Faded Markings">Faded Markings</option>
+      <option value="Others">Others</option>
+    </select>
+
+    <label for="comment">Comments:</label>
+    <textarea id="comment" rows="4" placeholder="Enter comments here" required></textarea>
+
+    <button type="submit">Save Photo & Info</button>
+  </form>
+
+  <div id="actions">
+    <button id="deleteAccountBtn">Delete Account</button>
+    <button id="logoutBtn">Logout</button><br>
+  </div>
+
+  <input type="file" id="profilePhotoInput" accept="image/*" style="display:none;" />
+
+  <script>
+    // Load user info from localStorage
+    const fullnameElem = document.getElementById('fullname');
+    const profilePhotoElem = document.getElementById('profilePhoto');
+    const profilePhotoInput = document.getElementById('profilePhotoInput');
+    let profilePhotoURL = null;
+
+    const fullname = localStorage.getItem('fullname');
+    const email = localStorage.getItem('email');
+    const surveyorId = localStorage.getItem('surveyorId');
+
+    if (!fullname || !surveyorId) {
+      alert('Please login first.');
+      window.location.href = 'serveryerlogin.html';
+    }
+
+    fullnameElem.textContent = fullname;
+
+    // Show first letter of email if no photo
+    function showInitial() {
+      profilePhotoElem.textContent = email ? email[0].toUpperCase() : '?';
+      profilePhotoElem.style.backgroundColor = '#007bff';
+      profilePhotoElem.style.color = 'white';
+    }
+
+    showInitial();
+
+    // Upload profile photo
+    profilePhotoElem.onclick = () => profilePhotoInput.click();
+
+    profilePhotoInput.onchange = async () => {
+      const file = profilePhotoInput.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('profilePhoto', file);
+      formData.append('surveyorId', surveyorId);
+
+      const res = await fetch('/upload-profile-photo', {
+        method: 'POST',
+        body: formData,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        profilePhotoURL = data.url;
+        profilePhotoElem.innerHTML = `<img src="${profilePhotoURL}" alt="Profile Photo">`;
+      } else {
+        alert('Profile photo upload failed.');
+      }
+    };
+
+    // Setup camera
+    const video = document.getElementById('camera');
+    const canvas = document.getElementById('canvas');
+    const capturedPhoto = document.getElementById('capturedPhoto');
+    const captureBtn = document.getElementById('captureBtn');
+
+    let latitude, longitude;
+    let street, city, region, country;
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+      } catch (err) {
+        alert('Cannot access camera: ' + err.message);
+      }
+    }
+
+    startCamera();
+
+    captureBtn.onclick = () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      const dataURL = canvas.toDataURL('image/jpeg');
+      capturedPhoto.src = dataURL;
+    };
+
+    // Get geolocation and reverse geocode
+    async function getLocation() {
+      if (!navigator.geolocation) {
+        document.getElementById('locationInfo').textContent = 'Geolocation not supported.';
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        latitude = pos.coords.latitude;
+        longitude = pos.coords.longitude;
+
+        // Use OpenStreetMap Nominatim API for reverse geocode
+        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`;
+        try {
+          const res = await fetch(url);
+          const data = await res.json();
+
+          street = data.address.road || '';
+          city = data.address.city || data.address.town || data.address.village || '';
+          region = data.address.state || '';
+          country = data.address.country || '';
+
+          document.getElementById('locationInfo').textContent =
+            `Street: ${street}, City: ${city}, Region: ${region}, Country: ${country}, Latitude: ${latitude.toFixed(5)}, Longitude: ${longitude.toFixed(5)}`;
+        } catch {
+          document.getElementById('locationInfo').textContent =
+            `Latitude: ${latitude.toFixed(5)}, Longitude: ${longitude.toFixed(5)}`;
+        }
+      }, () => {
+        document.getElementById('locationInfo').textContent = 'Permission denied for geolocation.';
+      });
+    }
+
+    getLocation();
+
+    // Submit photo + info
+    document.getElementById('photoForm').onsubmit = async (e) => {
+      e.preventDefault();
+
+      if (!capturedPhoto.src) {
+        return alert('Please capture a photo first.');
+      }
+
+      const roadName = document.getElementById('street').value;
+      const damageClass = document.getElementById('damageClass').value;
+      const comment = document.getElementById('comment').value;
+      const localTime = new Date().toLocaleString();
+
+      const payload = {
+        surveyorId,
+        fullname,
+        email,
+        imageData: capturedPhoto.src,
+        location: { street, city, region, country, latitude, longitude },
+        roadName,
+        damageClass,
+        comment,
+        localTime,
+      };
+
+      const res = await fetch('/upload-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        alert('Photo and info saved successfully!');
+        // Reset form & photo
+        capturedPhoto.src = '';
+        document.getElementById('photoForm').reset();
+      } else {
+        alert('Failed to save photo info.');
+      }
+    };
+
+    // Delete account button
+    document.getElementById('deleteAccountBtn').onclick = async () => {
+      if (!confirm('Are you sure you want to delete your account? This action cannot be undone.')) return;
+
+      const res = await fetch('/delete-account', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ surveyorId }),
+      });
+
+      if (res.ok) {
+        alert('Account deleted successfully.');
+        localStorage.clear();
+        window.location.href = 'serveryerregister.html';
+      } else {
+        alert('Failed to delete account.');
+      }
+    };
+
+    // Logout button
+    document.getElementById('logoutBtn').onclick = () => {
+      localStorage.clear();
+      window.location.href = 'serveryerlogin.html';
+    };
+
+    // Load existing profile photo if any on page load
+    window.onload = async () => {
+      const res = await fetch(`/get-profile-photo?surveyorId=${surveyorId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url) {
+          profilePhotoURL = data.url;
+          profilePhotoElem.innerHTML = `<img src="${profilePhotoURL}" alt="Profile Photo">`;
+        }
+      }
+    };
+  </script>
+</body>
+</html>

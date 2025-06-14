@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Surveyor Registration</title>
+  <style>
+    /* Reset margin and padding */
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #eef2f7;
+      padding: 30px 15px;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    form {
+      width: 100%;
+      max-width: 420px;
+      background: #fff;
+      padding: 30px 25px;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 25px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .input-group {
+      position: relative;
+      margin-bottom: 25px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      font-size: 16px;
+      border: 1.8px solid #ccd0d5;
+      border-radius: 8px;
+      transition: border-color 0.3s ease;
+      outline-offset: 0;
+    }
+
+    input:focus {
+      border-color: #0066ff;
+      box-shadow: 0 0 5px rgba(0, 102, 255, 0.3);
+      outline: none;
+    }
+
+    .toggle-password {
+      position: absolute;
+      top: 50%;
+      right: 40px;
+      transform: translateY(-50%);
+      font-size: 14px;
+      color: #555;
+      user-select: none;
+      cursor: pointer;
+      font-weight: 600;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+
+    .checkmark {
+      position: absolute;
+      top: 50%;
+      right: 12px;
+      transform: translateY(-50%);
+      font-size: 18px;
+      color: green;
+      display: none;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .error {
+      color: #d93025;
+      font-size: 13px;
+      margin-top: 4px;
+      min-height: 16px;
+    }
+
+    .valid input {
+      border-color: green;
+    }
+
+    .valid .checkmark {
+      display: inline;
+    }
+
+    button[type="submit"] {
+      width: 100%;
+      padding: 14px 0;
+      background: #0066ff;
+      color: #fff;
+      font-weight: 700;
+      font-size: 17px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    button[type="submit"]:hover {
+      background: #004bb5;
+    }
+
+    @media (max-width: 480px) {
+      form {
+        padding: 25px 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <form id="registerForm" novalidate>
+    <h2>Register as Surveyor</h2>
+
+    <div class="input-group" id="group-fullname">
+      <input type="text" name="fullname" placeholder="Full Name" autocomplete="name" required />
+      <span class="checkmark">✅</span>
+      <div class="error" id="fullnameError"></div>
+    </div>
+
+    <div class="input-group" id="group-email">
+      <input type="email" name="email" placeholder="Email" autocomplete="email" required />
+      <span class="checkmark">✅</span>
+      <div class="error" id="emailError"></div>
+    </div>
+
+    <div class="input-group" id="group-id">
+      <input type="text" name="surveyorId" placeholder="Surveyor ID" autocomplete="off" required />
+      <span class="checkmark">✅</span>
+      <div class="error" id="surveyorIdError"></div>
+    </div>
+
+    <div class="input-group" id="group-password" style="position: relative;">
+      <input type="password" name="password" id="password" placeholder="Password" autocomplete="new-password" required />
+      <button type="button" class="toggle-password" aria-label="Toggle password visibility" onclick="togglePassword('password')">Show</button>
+      <span class="checkmark">✅</span>
+      <div class="error" id="passwordError"></div>
+    </div>
+
+    <div class="input-group" id="group-confirm" style="position: relative;">
+      <input type="password" name="confirmPassword" id="confirmPassword" placeholder="Confirm Password" autocomplete="new-password" required />
+      <button type="button" class="toggle-password" aria-label="Toggle password visibility" onclick="togglePassword('confirmPassword')">Show</button>
+      <span class="checkmark">✅</span>
+      <div class="error" id="confirmPasswordError"></div>
+    </div>
+
+    <button type="submit">Register</button>
+  </form>
+
+  <script>
+    const form = document.getElementById('registerForm');
+    const fullname = form.fullname;
+    const email = form.email;
+    const surveyorId = form.surveyorId;
+    const password = form.password;
+    const confirmPassword = form.confirmPassword;
+
+    function togglePassword(fieldId) {
+      const input = document.getElementById(fieldId);
+      const toggleBtn = input.nextElementSibling;
+      if (input.type === 'password') {
+        input.type = 'text';
+        toggleBtn.textContent = 'Hide';
+      } else {
+        input.type = 'password';
+        toggleBtn.textContent = 'Show';
+      }
+    }
+
+    function setValid(groupId, valid) {
+      const group = document.getElementById(groupId);
+      if (valid) {
+        group.classList.add('valid');
+      } else {
+        group.classList.remove('valid');
+      }
+    }
+
+    function clearError(id) {
+      document.getElementById(id).textContent = '';
+    }
+
+    function validateRealtime() {
+      fullname.addEventListener('input', () => {
+        const valid = fullname.value.trim().length > 2;
+        setValid('group-fullname', valid);
+        clearError('fullnameError');
+      });
+
+      email.addEventListener('input', () => {
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+        const valid = emailPattern.test(email.value.trim());
+        setValid('group-email', valid);
+        clearError('emailError');
+      });
+
+      surveyorId.addEventListener('input', () => {
+        const valid = surveyorId.value.trim().length > 2;
+        setValid('group-id', valid);
+        clearError('surveyorIdError');
+      });
+
+      password.addEventListener('input', () => {
+        const valid = password.value.length >= 6;
+        setValid('group-password', valid);
+        clearError('passwordError');
+      });
+
+      confirmPassword.addEventListener('input', () => {
+        const valid = confirmPassword.value === password.value && confirmPassword.value.length > 0;
+        setValid('group-confirm', valid);
+        clearError('confirmPasswordError');
+      });
+    }
+
+    validateRealtime();
+
+    function clearErrors() {
+      document.querySelectorAll('.error').forEach(el => el.textContent = '');
+    }
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      clearErrors();
+
+      const data = {
+        fullname: fullname.value.trim(),
+        email: email.value.trim(),
+        surveyorId: surveyorId.value.trim(),
+        password: password.value,
+        confirmPassword: confirmPassword.value,
+      };
+
+      let hasError = false;
+
+      if (!data.fullname || data.fullname.length < 3) {
+        document.getElementById('fullnameError').textContent = 'Full name must be at least 3 characters.';
+        hasError = true;
+      }
+
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+      if (!data.email || !emailPattern.test(data.email)) {
+        document.getElementById('emailError').textContent = 'Please enter a valid email address.';
+        hasError = true;
+      }
+
+      if (!data.surveyorId || data.surveyorId.length < 3) {
+        document.getElementById('surveyorIdError').textContent = 'Surveyor ID must be at least 3 characters.';
+        hasError = true;
+      }
+
+      if (!data.password || data.password.length < 6) {
+        document.getElementById('passwordError').textContent = 'Password must be at least 6 characters.';
+        hasError = true;
+      }
+
+      if (data.password !== data.confirmPassword) {
+        document.getElementById('confirmPasswordError').textContent = 'Passwords do not match.';
+        hasError = true;
+      }
+
+      if (hasError) return;
+
+      try {
+        const res = await fetch('/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+
+        const responseData = await res.json();
+
+        if (res.ok) {
+          alert(responseData.message);
+          window.location.href = 'serveryerlogin.html';
+        } else {
+          // Show server validation errors under respective fields or alert generic errors
+          if (responseData.message.toLowerCase().includes('email')) {
+            document.getElementById('emailError').textContent = responseData.message;
+            setValid('group-email', false);
+          } else if (responseData.message.toLowerCase().includes('surveyor id')) {
+            document.getElementById('surveyorIdError').textContent = responseData.message;
+            setValid('group-id', false);
+          } else {
+            alert(responseData.message);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Something went wrong. Please try again.');
+      }
+    });
+  </script>
+</body>
+</html>

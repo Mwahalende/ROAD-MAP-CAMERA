@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: #333;
+    }
+    .filters, .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+      align-items: center;
+    }
+    .filters select,
+    .filters input {
+      padding: 8px;
+      font-size: 14px;
+    }
+    button.export {
+      padding: 8px 16px;
+      font-size: 14px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button.export:hover {
+      background: #0056b3;
+    }
+    .photo-card {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 25px;
+      overflow: hidden;
+    }
+    .photo-row {
+      display: flex;
+      flex-wrap: wrap;
+    }
+    .photo-card img.photo {
+      width: 100%;
+      max-width: 400px;
+      height: auto;
+      object-fit: cover;
+      border-right: 1px solid #eee;
+    }
+    .photo-info {
+      padding: 15px;
+      flex: 1;
+      min-width: 250px;
+    }
+    .photo-info p {
+      margin: 8px 0;
+      font-size: 14px;
+    }
+    .map-frame {
+      width: 100%;
+      height: 250px;
+      border: none;
+    }
+    .delete-btn {
+      background: #dc3545;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    .delete-btn:hover {
+      background: #c82333;
+    }
+    .stats {
+      font-weight: bold;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <h1>Admin Dashboard</h1>
+
+  <div class="filters">
+    <select id="filterSurveyor">
+      <option value="">All Surveyors</option>
+    </select>
+    <select id="filterDamage">
+      <option value="">All Damage Types</option>
+      <option value="Cracks">Cracks</option>
+      <option value="Potholes">Potholes</option>
+      <option value="Faded Markings">Faded Markings</option>
+      <option value="Others">Others</option>
+    </select>
+    <input type="date" id="startDate" />
+    <input type="date" id="endDate" />
+    <button onclick="applyFilter()">Apply Filter</button>
+    <button class="export" onclick="exportCSV()">Export CSV</button>
+    <button class="export" onclick="exportPDF()">Export PDF</button>
+  </div>
+
+  <div class="stats" id="statsContainer"></div>
+
+  <div id="photosContainer"></div>
+
+  <script>
+    let allPhotos = [];
+    let filteredPhotos = [];
+
+    async function loadPhotos() {
+      const res = await fetch('/get-all-photos');
+      const data = await res.json();
+      allPhotos = data.photos;
+      populateSurveyors(allPhotos);
+      applyFilter();
+    }
+
+    function populateSurveyors(photos) {
+      const select = document.getElementById('filterSurveyor');
+      const unique = [...new Set(photos.map(p => `${p.fullname} (${p.email})`))];
+      select.innerHTML = `<option value="">All Surveyors</option>` + unique.map(u => `<option value="${u}">${u}</option>`).join('');
+    }
+
+    function applyFilter() {
+      const surveyorVal = document.getElementById('filterSurveyor').value;
+      const damageVal = document.getElementById('filterDamage').value;
+      const start = document.getElementById('startDate').value;
+      const end = document.getElementById('endDate').value;
+
+      filteredPhotos = allPhotos.filter(p => {
+        const matchSurveyor = !surveyorVal || `${p.fullname} (${p.email})` === surveyorVal;
+        const matchDamage = !damageVal || p.damageClass === damageVal;
+        const matchDate =
+          (!start || new Date(p.dateCreated) >= new Date(start)) &&
+          (!end || new Date(p.dateCreated) <= new Date(end));
+        return matchSurveyor && matchDamage && matchDate;
+      });
+
+      updateStats(filteredPhotos);
+      renderPhotos(filteredPhotos);
+    }
+
+    function updateStats(photos) {
+      const count = photos.length;
+      const byType = photos.reduce((acc, p) => {
+        acc[p.damageClass] = (acc[p.damageClass] || 0) + 1;
+        return acc;
+      }, {});
+      const statsText = `Total Reports: ${count} | ` +
+        Object.entries(byType).map(([type, val]) => `${type}: ${val}`).join(' | ');
+      document.getElementById('statsContainer').textContent = statsText;
+    }
+
+    function renderPhotos(photos) {
+      const container = document.getElementById('photosContainer');
+      container.innerHTML = '';
+      photos.forEach(photo => {
+        const loc = photo.location || {};
+        const lat = loc.latitude || 0;
+        const lng = loc.longitude || 0;
+        const mapURL = `https://maps.google.com/maps?q=${lat},${lng}&hl=es&z=16&output=embed`;
+
+        const div = document.createElement('div');
+        div.className = 'photo-card';
+        div.innerHTML = `
+          <div class="photo-row">
+            <img src="${photo.photoUrl}" class="photo" />
+            <div class="photo-info">
+              <p><strong>Surveyor:</strong> ${photo.fullname} (${photo.email})</p>
+              <p><strong>Road:</strong> ${photo.roadName}</p>
+              <p><strong>Damage:</strong> ${photo.damageClass}</p>
+              <p><strong>Comment:</strong> ${photo.comment}</p>
+              <p><strong>Location:</strong> ${loc.street}, ${loc.city}, ${loc.region}, ${loc.country}</p>
+              <p><strong>Coords:</strong> ${lat.toFixed(5)}, ${lng.toFixed(5)}</p>
+              <p><strong>Time:</strong> ${photo.localTime}</p>
+              <button class="delete-btn" onclick="deletePhoto('${photo._id}')">Delete Photo</button><br/>
+              <button class="export" style="margin-top:10px;" onclick='exportSinglePDF(${JSON.stringify(photo).replace(/"/g, "&quot;")})'>Download PDF</button>
+            </div>
+          </div>
+          <iframe class="map-frame" src="${mapURL}" loading="lazy"></iframe>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    async function deletePhoto(photoId) {
+      if (!confirm('Delete this photo permanently?')) return;
+      const res = await fetch(`/delete-photo/${photoId}`, { method: 'DELETE' });
+      if (res.ok) {
+        alert('Deleted');
+        loadPhotos();
+      } else {
+        alert('Failed to delete');
+      }
+    }
+
+    function exportCSV() {
+      if (!filteredPhotos.length) return alert('No data to export');
+      let csv = "Surveyor,Email,Road,Damage,Comment,Street,City,Region,Country,Latitude,Longitude,Local Time\n";
+      filteredPhotos.forEach(p => {
+        const loc = p.location || {};
+        csv += `"${p.fullname}","${p.email}","${p.roadName}","${p.damageClass}","${p.comment}","${loc.street}","${loc.city}","${loc.region}","${loc.country}",${loc.latitude},${loc.longitude},"${p.localTime}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'road_damage_report.csv';
+      link.click();
+    }
+
+    async function exportPDF() {
+      if (!filteredPhotos.length) return alert('No data to export');
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      let y = 10;
+
+      for (let i = 0; i < filteredPhotos.length; i++) {
+        const p = filteredPhotos[i];
+        const loc = p.location || {};
+        const imgData = await toDataURL(p.photoUrl);
+
+        if (y > 250) {
+          doc.addPage();
+          y = 10;
+        }
+
+        doc.addImage(imgData, 'JPEG', 10, y, 40, 30);
+
+        doc.setFontSize(10);
+        doc.text(`
+${i + 1}) ${p.fullname} (${p.email})
+${p.roadName}, ${p.damageClass}
+${p.comment}
+${loc.street}, ${loc.city}, ${loc.region}, ${loc.country}
+(${loc.latitude.toFixed(5)}, ${loc.longitude.toFixed(5)})
+${p.localTime}`, 55, y + 5);
+
+        y += 40;
+      }
+
+      doc.save('road_damage_with_images.pdf');
+    }
+
+    async function exportSinglePDF(photo) {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const loc = photo.location || {};
+      const imgData = await toDataURL(photo.photoUrl);
+
+      doc.addImage(imgData, 'JPEG', 10, 10, 60, 45);
+      doc.setFontSize(11);
+      doc.text(`
+Surveyor: ${photo.fullname} (${photo.email})
+Road: ${photo.roadName}
+Damage: ${photo.damageClass}
+Comment: ${photo.comment}
+Location: ${loc.street}, ${loc.city}, ${loc.region}, ${loc.country}
+Coordinates: ${loc.latitude?.toFixed(5)}, ${loc.longitude?.toFixed(5)}
+Time: ${photo.localTime}
+`, 10, 65);
+
+      doc.save(`report_${photo.fullname.replace(/\s/g, '_')}_${Date.now()}.pdf`);
+    }
+
+    function toDataURL(url) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width / 4;
+          canvas.height = img.height / 4;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg'));
+        };
+        img.onerror = reject;
+        img.src = url;
+      });
+    }
+
+    window.onload = loadPhotos;
+  </script>
+</body>
+</html>
